@@ -19,7 +19,7 @@ fuzzBoxes =
 fuzzIndex =
     let
         bounded =
-            Fuzz.map (List.indexedMap (\index box -> SI.boxValue box index)) fuzzBoxes
+            Fuzz.map (List.indexedMap (\index box -> SI.element box index)) fuzzBoxes
     in
         Fuzz.map (\list -> List.foldl (\bv rc -> SI.insert bv rc) SI.empty list) bounded
 
@@ -31,7 +31,7 @@ insertOperation =
             \boxes ->
                 let
                     bounded =
-                        List.indexedMap (\index box -> SI.boxValue box index) boxes
+                        List.indexedMap (\index box -> SI.element box index) boxes
 
                     rc =
                         List.foldl (\bv rc -> SI.insert bv rc) SI.empty bounded
@@ -41,7 +41,7 @@ insertOperation =
             \boxes ->
                 let
                     bounded =
-                        List.indexedMap (\index box -> SI.boxValue box index) boxes
+                        List.indexedMap (\index box -> SI.element box index) boxes
 
                     rc =
                         List.foldl (\bv rc -> SI.insert bv rc) SI.empty bounded
@@ -50,8 +50,8 @@ insertOperation =
                         ( minY box, maxX box, minY box, maxY box )
                 in
                     Expect.equalLists
-                        (List.map SI.getBoundingBox bounded |> List.sortBy coords)
-                        (SI.boundingBoxes rc |> List.sortBy coords)
+                        (List.map SI.bounds bounded |> List.sortBy coords)
+                        (SI.bounds rc |> List.sortBy coords)
         ]
 
 
@@ -62,7 +62,7 @@ spanSuite =
             \index ->
                 let
                     boxes =
-                        SI.boundingBoxes index
+                        SI.bounds index
 
                     ( minX, maxX, minY, maxY ) =
                         ( minimumBy BB.minX boxes |> Maybe.map BB.minX |> Maybe.withDefault -10000
@@ -79,7 +79,7 @@ spanSuite =
             \index ->
                 let
                     boxes =
-                        SI.boundingBoxes index
+                        SI.bounds index
 
                     ( minX, maxX, minY, maxY ) =
                         ( minimumBy BB.minX boxes |> Maybe.map BB.minX |> Maybe.withDefault -10000
@@ -96,7 +96,7 @@ spanSuite =
             \index ->
                 let
                     boxes =
-                        SI.boundingBoxes index
+                        SI.bounds index
 
                     ( minX, maxX, minY, maxY ) =
                         ( minimumBy BB.minX boxes |> Maybe.map BB.minX |> Maybe.withDefault -10000
@@ -113,7 +113,7 @@ spanSuite =
             \index ->
                 let
                     boxes =
-                        SI.boundingBoxes index
+                        SI.bounds index
 
                     ( minX, maxX, minY, maxY ) =
                         ( minimumBy BB.minX boxes |> Maybe.map BB.minX |> Maybe.withDefault -10000
@@ -130,7 +130,7 @@ spanSuite =
             \index ->
                 let
                     boxes =
-                        SI.boundingBoxes index
+                        SI.bounds index
 
                     ( minX, maxX, minY, maxY ) =
                         ( minimumBy BB.maxX boxes |> Maybe.map BB.maxX |> Maybe.withDefault -10000
@@ -144,3 +144,74 @@ spanSuite =
                 in
                     Expect.equalLists (SI.span maxSpan index |> SI.values) (SI.values index)
         ]
+
+
+containedInSuite : Test
+containedInSuite =
+    describe "Similar to span, but requires that all elements are strictly contained in the range"
+        [ fuzz fuzzIndex "a range touching all elements is the maximal span" <|
+            \index ->
+                let
+                    boxes =
+                        SI.bounds index
+
+                    ( minX, maxX, minY, maxY ) =
+                        ( minimumBy BB.maxX boxes |> Maybe.map BB.maxX |> Maybe.withDefault -10000
+                        , maximumBy BB.minX boxes |> Maybe.map BB.minX |> Maybe.withDefault 10000
+                        , minimumBy BB.maxY boxes |> Maybe.map BB.maxY |> Maybe.withDefault -10000
+                        , maximumBy BB.minY boxes |> Maybe.map BB.minY |> Maybe.withDefault 10000
+                        )
+
+                    innerSpan =
+                        fromExtrema { minX = minX, maxX = maxX, minY = minY, maxY = maxY }
+                in
+                    Expect.equalLists (SI.containedIn innerSpan index |> SI.values) (SI.values index)
+        ]
+
+
+partitionByLineSuite : Test
+partitionByLineSuite =
+    describe "Partition index by a line"
+        []
+
+
+partitionByBoundsSuite : Test
+partitionByBoundsSuite =
+    describe "Partition index by a bounding box"
+        []
+
+
+mergeSuite : Test
+mergeSuite =
+    describe "Merge two indices togather"
+        []
+
+
+collisionsSuite : Test
+collisionsSuite =
+    describe "Find all colliding pairs in the index"
+        []
+
+
+mapSuite : Test
+mapSuite =
+    describe "Map all elements and restructure the index if required"
+        []
+
+
+mapValuesSuite : Test
+mapValuesSuite =
+    describe "Map all values without changing their bounding boxes"
+        []
+
+
+nearestSuite : Test
+nearestSuite =
+    describe "Find N nearests elements to point"
+        []
+
+
+removeSuite : Test
+removeSuite =
+    describe "Remove everything that intersects with a bounding box"
+        []

@@ -2,16 +2,29 @@ module SpatialIndex.SpatialIndex2D
     exposing
         ( SpatialIndex
         , BoxBoundedValue
-        , getBoundingBox
-        , getValue
-        , boxValue
+        , bounds
+        , value
+        , element
         , empty
+        , fromElements
+        , maxBoundingBox
         , insert
         , values
-        , boundingBoxes
+        , bounds
         , span
+        , containedIn
+        , partitionByLine
+        , partitionByBounds
+        , merge
+        , collisions
+        , map
+        , mapValues
+        , nearest
+        , remove
         )
 
+import Direction2d exposing (Direction2d)
+import Point2d exposing (Point2d)
 import Tuple exposing (first, second)
 import List.Extra exposing (dropWhile, takeWhile)
 import BoundingBox2d as BoundingBox exposing (BoundingBox2d, minX, minY, extrema, intersects)
@@ -28,18 +41,18 @@ type alias BoxBoundedValue a =
     ( BoundingBox2d, a )
 
 
-boxValue : BoundingBox2d -> a -> BoxBoundedValue a
-boxValue box val =
+element : BoundingBox2d -> a -> BoxBoundedValue a
+element box val =
     ( box, val )
 
 
-getBoundingBox : BoxBoundedValue a -> BoundingBox2d
-getBoundingBox ( box, value ) =
+bounds : BoxBoundedValue a -> BoundingBox2d
+bounds ( box, value ) =
     box
 
 
-getValue : BoxBoundedValue a -> a
-getValue ( box, value ) =
+value : BoxBoundedValue a -> a
+value ( box, value ) =
     value
 
 
@@ -51,13 +64,26 @@ empty =
         }
 
 
+maxBoundingBox : SpatialIndex -> BoundingBox2d
+maxBoundingBox index =
+    Debug.crash "TBD"
+
+
+fromElements : List (BoxBoundedValue a) -> SpatialIndex a
+fromElements elements =
+    SpatialIndex
+        { xSorted = List.sortBy (bounds >> minX) (elements)
+        , ySorted = List.sortBy (bounds >> minY) (elements)
+        }
+
+
 insert : BoxBoundedValue a -> SpatialIndex a -> SpatialIndex a
 insert value index =
     case index of
         SpatialIndex { xSorted, ySorted } ->
             SpatialIndex
-                { xSorted = List.sortBy (getBoundingBox >> minX) (value :: xSorted)
-                , ySorted = List.sortBy (getBoundingBox >> minY) (value :: ySorted)
+                { xSorted = List.sortBy (bounds >> minX) (value :: xSorted)
+                , ySorted = List.sortBy (bounds >> minY) (value :: ySorted)
                 }
 
 
@@ -65,12 +91,21 @@ values : SpatialIndex a -> List a
 values index =
     case index of
         SpatialIndex { xSorted, ySorted } ->
-            List.map getValue xSorted
+            List.map value xSorted
 
 
-boundingBoxes : SpatialIndex a -> List BoundingBox2d
-boundingBoxes (SpatialIndex { xSorted, ySorted }) =
-    List.map getBoundingBox xSorted
+bounds : SpatialIndex a -> List BoundingBox2d
+bounds (SpatialIndex { xSorted, ySorted }) =
+    List.map bounds xSorted
+
+
+elements : SpatialIndex a -> List (BoxBoundedValue a)
+elements (SpatialIndex { xSorted }) =
+    xSorted
+
+
+
+-- TODO: Missing: boundingBox to return the bounding box of the whole span
 
 
 span : BoundingBox2d -> SpatialIndex a -> SpatialIndex a
@@ -80,9 +115,54 @@ span bounds (SpatialIndex { xSorted, ySorted }) =
             extrema bounds
 
         xs =
-            xSorted |> List.filter (getBoundingBox >> (intersects bounds))
+            xSorted |> List.filter (bounds >> (intersects bounds))
     in
         SpatialIndex
             { xSorted = xs
-            , ySorted = xs |> List.sortBy (\b -> b |> getBoundingBox |> BoundingBox.minY)
+            , ySorted = xs |> List.sortBy (\b -> b |> bounds |> BoundingBox.minY)
             }
+
+
+containedIn : BoundingBox2d -> SpatialIndex a -> SpatialIndex a
+containedIn range index =
+    Debug.crash "TBD"
+
+
+partitionByLine : Point2d -> Direction2d -> SpatialIndex a -> ( SpatialIndex a, SpatialIndex a )
+partitionByLine point normal index =
+    Debug.crash "TBD"
+
+
+partitionByBounds : BoundingBox2d -> SpatialIndex a -> SpatialIndex a
+partitionByBounds bounds index =
+    Debug.crash "TBD"
+
+
+merge : SpatialIndex a -> SpatialIndex a -> SpatialIndex a
+merge (SpatialIndex xs1) (SpatialIndex xs2) =
+    fromElements (.xSorted xs1 |> List.append xs2.xSorted)
+
+
+collisions : SpatialIndex a -> List ( BoxBoundedValue a, BoxBoundedValue a )
+collisions index =
+    Debug.crash "TBD"
+
+
+map : (BoxBoundedValue a -> BoxBoundedValue b) -> SpatialIndex a -> SpatialIndex b
+map f index =
+    Debug.crash "TBD"
+
+
+mapValues : (a -> b) -> SpatialIndex a -> SpatialIndex b
+mapValues f index =
+    Debug.crash "TBD"
+
+
+nearest : Int -> Point2d -> SpatialIndex a -> SpatialIndex a
+nearest k point index =
+    Debug.crash "TBD"
+
+
+remove : BoundingBox2d -> SpatialIndex a -> SpatialIndex a
+remove bounds index =
+    Debug.crash "TBD"
