@@ -24,9 +24,9 @@ fuzzIndex =
         Fuzz.map (\list -> List.foldl (\bv rc -> SI.insert bv rc) SI.empty list) bounded
 
 
-boxSuite : Test
-boxSuite =
-    describe "Checking box related logic"
+insertOperation : Test
+insertOperation =
+    describe "Insert operation"
         [ fuzz fuzzBoxes "insertion preserves values" <|
             \boxes ->
                 let
@@ -52,7 +52,13 @@ boxSuite =
                     Expect.equalLists
                         (List.map SI.getBoundingBox bounded |> List.sortBy coords)
                         (SI.boundingBoxes rc |> List.sortBy coords)
-        , fuzz fuzzIndex "span of maximal range is everything" <|
+        ]
+
+
+spanSuite : Test
+spanSuite =
+    describe "Span operation"
+        [ fuzz fuzzIndex "span of maximal range is everything" <|
             \index ->
                 let
                     boxes =
