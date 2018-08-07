@@ -6,6 +6,12 @@ import Test exposing (..)
 import List.Extra exposing (minimumBy, maximumBy)
 import SpatialIndex.SpatialIndex2D as SI exposing (..)
 import BoundingBox2d as BB exposing (fromExtrema, maxX, maxY, minX, minY)
+import Point2d exposing (fromCoordinates)
+import Direction2d exposing (positiveX)
+
+
+delta =
+    1.0e-6
 
 
 fuzzBox =
@@ -43,7 +49,7 @@ insertOperation =
                     bounded =
                         List.indexedMap (\index box -> SI.element box index) boxes
 
-                    rc =
+                    index =
                         List.foldl (\bv rc -> SI.insert bv rc) SI.empty bounded
 
                     coords box =
@@ -51,7 +57,7 @@ insertOperation =
                 in
                     Expect.equalLists
                         (List.map SI.bounds bounded |> List.sortBy coords)
-                        (SI.bounds rc |> List.sortBy coords)
+                        (SI.boundingBoxes index |> List.sortBy coords)
         ]
 
 
@@ -62,7 +68,7 @@ spanSuite =
             \index ->
                 let
                     boxes =
-                        SI.bounds index
+                        SI.boundingBoxes index
 
                     ( minX, maxX, minY, maxY ) =
                         ( minimumBy BB.minX boxes |> Maybe.map BB.minX |> Maybe.withDefault -10000
@@ -79,7 +85,7 @@ spanSuite =
             \index ->
                 let
                     boxes =
-                        SI.bounds index
+                        SI.boundingBoxes index
 
                     ( minX, maxX, minY, maxY ) =
                         ( minimumBy BB.minX boxes |> Maybe.map BB.minX |> Maybe.withDefault -10000
@@ -96,7 +102,7 @@ spanSuite =
             \index ->
                 let
                     boxes =
-                        SI.bounds index
+                        SI.boundingBoxes index
 
                     ( minX, maxX, minY, maxY ) =
                         ( minimumBy BB.minX boxes |> Maybe.map BB.minX |> Maybe.withDefault -10000
@@ -113,7 +119,7 @@ spanSuite =
             \index ->
                 let
                     boxes =
-                        SI.bounds index
+                        SI.boundingBoxes index
 
                     ( minX, maxX, minY, maxY ) =
                         ( minimumBy BB.minX boxes |> Maybe.map BB.minX |> Maybe.withDefault -10000
@@ -130,7 +136,7 @@ spanSuite =
             \index ->
                 let
                     boxes =
-                        SI.bounds index
+                        SI.boundingBoxes index
 
                     ( minX, maxX, minY, maxY ) =
                         ( minimumBy BB.maxX boxes |> Maybe.map BB.maxX |> Maybe.withDefault -10000
@@ -153,7 +159,7 @@ containedInSuite =
             \index ->
                 let
                     boxes =
-                        SI.bounds index
+                        SI.boundingBoxes index
 
                     ( minX, maxX, minY, maxY ) =
                         ( minimumBy BB.maxX boxes |> Maybe.map BB.maxX |> Maybe.withDefault -10000
@@ -166,13 +172,91 @@ containedInSuite =
                         fromExtrema { minX = minX, maxX = maxX, minY = minY, maxY = maxY }
                 in
                     Expect.equalLists (SI.containedIn innerSpan index |> SI.values) (SI.values index)
+        , fuzz4 float float float float "preset values are contained in an index" <|
+            \x1 x2 y1 y2 ->
+                let
+                    minX_ =
+                        min x1 x2
+
+                    maxX_ =
+                        max x1 x2
+
+                    minY_ =
+                        min y1 y2
+
+                    maxY_ =
+                        max y1 y2
+
+                    range =
+                        fromExtrema { minX = minX_, maxX = maxX_, minY = minY_, maxY = maxY_ }
+
+                    contained =
+                        [ element (fromExtrema { minX = minX_, maxX = maxX_, minY = minY_, maxY = maxY_ }) "contained 1"
+                        , element (fromExtrema { minX = minX_ + delta, maxX = maxX_ - delta, minY = minY_ + delta, maxY = maxY_ - delta }) "contained 2"
+                        ]
+
+                    outside =
+                        [ element (fromExtrema { minX = minX_ - delta, maxX = maxX_, minY = minY_, maxY = maxY_ }) "out 1"
+                        , element (fromExtrema { minX = minX_, maxX = maxX_ + delta, minY = minY_, maxY = maxY_ }) "out 2"
+                        , element (fromExtrema { minX = minX_, maxX = maxX_, minY = minY_ - delta, maxY = maxY_ }) "out 3"
+                        , element (fromExtrema { minX = minX_, maxX = maxX_, minY = minY_, maxY = maxY_ + delta }) "out 4"
+                        ]
+
+                    index =
+                        SI.fromElements <| (contained |> List.append outside)
+                in
+                    Expect.equalLists [ "contained 1", "contained 2" ] (containedIn range index |> SI.values |> List.sort)
         ]
 
 
 partitionByLineSuite : Test
 partitionByLineSuite =
     describe "Partition index by a line"
-        []
+        [ fuzz fuzzIndex "Elements space separated by medial X" <|
+            \index ->
+                let
+                    sorted =
+                        SI.elements index |> List.sortBy (bounds >> maxX)
+
+                    lower =
+                        List.take (List.length sorted // 2) sorted
+
+                    upper =
+                        List.drop (List.length sorted // 2) sorted
+
+                    medial =
+                        Maybe.map (bounds >> maxX) (List.head upper)
+
+                    point =
+                        Maybe.map (\x -> fromCoordinates ( x, 0 )) medial
+
+                    result =
+                        Maybe.map (\p -> partitionByLine p positiveX index) point
+
+                    lowerResult =
+                        Maybe.map Tuple.second
+
+                    upperResult =
+                        Maybe.map Tuple.first
+                in
+                    Expect.all
+                        [ \res ->
+                            Expect.equalLists
+                                (List.map value lower |> List.sort)
+                                (lowerResult res
+                                    |> Maybe.map values
+                                    |> Maybe.withDefault []
+                                )
+                        , \res ->
+                            Expect.equalLists
+                                (List.map value upper |> List.sort)
+                                (upperResult res
+                                    |> Maybe.map values
+                                    |> Maybe.withDefault []
+                                )
+                        ]
+                        result
+        ]
 
 
 partitionByBoundsSuite : Test

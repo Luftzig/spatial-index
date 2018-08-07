@@ -10,7 +10,8 @@ module SpatialIndex.SpatialIndex2D
         , maxBoundingBox
         , insert
         , values
-        , bounds
+        , boundingBoxes
+        , elements
         , span
         , containedIn
         , partitionByLine
@@ -94,8 +95,8 @@ values index =
             List.map value xSorted
 
 
-bounds : SpatialIndex a -> List BoundingBox2d
-bounds (SpatialIndex { xSorted, ySorted }) =
+boundingBoxes : SpatialIndex a -> List BoundingBox2d
+boundingBoxes (SpatialIndex { xSorted, ySorted }) =
     List.map bounds xSorted
 
 
@@ -109,13 +110,13 @@ elements (SpatialIndex { xSorted }) =
 
 
 span : BoundingBox2d -> SpatialIndex a -> SpatialIndex a
-span bounds (SpatialIndex { xSorted, ySorted }) =
+span boundingBox (SpatialIndex { xSorted, ySorted }) =
     let
         { minX, maxX, minY, maxY } =
-            extrema bounds
+            extrema boundingBox
 
         xs =
-            xSorted |> List.filter (bounds >> (intersects bounds))
+            xSorted |> List.filter (bounds >> (intersects boundingBox))
     in
         SpatialIndex
             { xSorted = xs
