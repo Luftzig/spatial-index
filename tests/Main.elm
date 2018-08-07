@@ -211,6 +211,7 @@ containedInSuite =
 
 partitionByLineSuite : Test
 partitionByLineSuite =
+    -- TODO: Need to check other directions and possibly not axis aligned directions, too
     describe "Partition index by a line"
         [ fuzz fuzzIndex "Elements space separated by medial X" <|
             \index ->
