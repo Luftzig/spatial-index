@@ -27,10 +27,14 @@ import BoundingBox2d as BoundingBox exposing (BoundingBox2d, extrema, intersects
 import Direction2d exposing (Direction2d)
 import List.Extra exposing (dropWhile, takeWhile)
 import Point2d exposing (Point2d)
+import Quantity exposing (Quantity)
 import Tuple exposing (first, second)
 
 
 {-| A Two dimensional spatial index
+a - the values stored in the index
+quantity - unit used for measure
+coordinates - coordinates system used
 -}
 type SpatialIndex quantity coordinates a
     = SpatialIndex
@@ -83,13 +87,18 @@ maxBoundingBox index =
     Debug.todo "TBD"
 
 
+getRawQuantity : Quantity number unit -> number
+getRawQuantity (Quantity.Quantity n) =
+    n
+
+
 {-| Construct an index from a list of `BoxBoundedValue a`
 -}
 fromElements : List (BoxBoundedValue q c a) -> SpatialIndex q c a
 fromElements inputs =
     SpatialIndex
-        { xSorted = List.sortBy (BoundingBox2d bounds >> minX) inputs
-        , ySorted = List.sortBy (bounds >> minY) inputs
+        { xSorted = List.sortBy (bounds >> minX >> getRawQuantity) inputs
+        , ySorted = List.sortBy (bounds >> minY >> getRawQuantity) inputs
         }
 
 
@@ -100,8 +109,8 @@ insert val index =
     case index of
         SpatialIndex { xSorted, ySorted } ->
             SpatialIndex
-                { xSorted = List.sortBy (bounds >> minX) (val :: xSorted)
-                , ySorted = List.sortBy (bounds >> minY) (val :: ySorted)
+                { xSorted = List.sortBy (bounds >> minX >> getRawQuantity) (val :: xSorted)
+                , ySorted = List.sortBy (bounds >> minY >> getRawQuantity) (val :: ySorted)
                 }
 
 
@@ -143,7 +152,7 @@ span boundingBox (SpatialIndex { xSorted, ySorted }) =
     in
     SpatialIndex
         { xSorted = xs
-        , ySorted = xs |> List.sortBy (\b -> b |> bounds |> BoundingBox.minY)
+        , ySorted = xs |> List.sortBy (\b -> b |> bounds |> BoundingBox.minY |> getRawQuantity)
         }
 
 
