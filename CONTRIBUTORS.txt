@@ -1,0 +1,6 @@
+CONTRIBUTORS
+
+= From the Stockholm Elm meetups:
+
+Martin (Stuart?)
+Alexandre Gordeev
