@@ -5,6 +5,7 @@ import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Length exposing (Length, Meters)
 import Quantity exposing (Quantity)
+import Set
 import SpatialIndex.SpatialIndex2D as SpatialIndex exposing (..)
 import Test exposing (..)
 
@@ -12,6 +13,11 @@ import Test exposing (..)
 delta : Float
 delta =
     1.0e-6
+
+
+lengthDelta : Length
+lengthDelta =
+    Length.meters delta
 
 
 fuzzLength : Fuzzer Length
@@ -89,12 +95,37 @@ getRawQuantity (Quantity.Quantity n) =
     n
 
 
-minimumLength =
+lengthLowerBound =
     Length.meters -1000000
 
 
-maximumLength =
+lengthUpperBound =
     Length.meters 1000000
+
+
+minimumBy : (a -> Quantity number u) -> List a -> Maybe (Quantity number u)
+minimumBy f xs =
+    xs |> List.map f |> Quantity.minimum
+
+
+maximumBy : (a -> Quantity number u) -> List a -> Maybe (Quantity number u)
+maximumBy f xs =
+    xs |> List.map f |> Quantity.maximum
+
+
+equalAsSets : List comparable -> List comparable -> Expectation
+equalAsSets xs ys =
+    Set.fromList xs |> Expect.equalSets (Set.fromList ys)
+
+
+equalAsSetsBy : (a -> comparable) -> List a -> List a -> Expectation
+equalAsSetsBy f xs ys =
+    equalAsSets (List.map f xs) (List.map f ys)
+
+
+equalIndexValues : SpatialIndex q c comparable -> SpatialIndex q c comparable -> Expectation
+equalIndexValues index1 index2 =
+    SpatialIndex.values index1 |> equalAsSets (SpatialIndex.values index2)
 
 
 spanSuite : Test
@@ -107,16 +138,16 @@ spanSuite =
                         SpatialIndex.boundingBoxes index
 
                     extrema =
-                        { minX = boxes |> List.map BoundingBox.minX |> Quantity.minimum |> Maybe.withDefault minimumLength
-                        , maxX = boxes |> List.map BoundingBox.maxX |> Quantity.maximum |> Maybe.withDefault maximumLength
-                        , minY = boxes |> List.map BoundingBox.minY |> Quantity.minimum |> Maybe.withDefault minimumLength
-                        , maxY = boxes |> List.map BoundingBox.maxY |> Quantity.maximum |> Maybe.withDefault maximumLength
+                        { minX = minimumBy BoundingBox.minX boxes |> Maybe.withDefault lengthLowerBound
+                        , maxX = maximumBy BoundingBox.maxX boxes |> Maybe.withDefault lengthUpperBound
+                        , minY = minimumBy BoundingBox.minY boxes |> Maybe.withDefault lengthLowerBound
+                        , maxY = maximumBy BoundingBox.maxY boxes |> Maybe.withDefault lengthUpperBound
                         }
 
                     maxSpan =
                         fromExtrema extrema
                 in
-                Expect.equalLists (SpatialIndex.span maxSpan index |> SpatialIndex.values) (SpatialIndex.values index)
+                SpatialIndex.span maxSpan index |> equalIndexValues index
         , fuzz fuzzIndex "span out of range is empty" <|
             \index ->
                 let
@@ -124,10 +155,10 @@ spanSuite =
                         SpatialIndex.boundingBoxes index
 
                     extrema =
-                        { minX = boxes |> List.map BoundingBox.minX |> Quantity.minimum |> Maybe.withDefault minimumLength
-                        , maxX = boxes |> List.map BoundingBox.maxX |> Quantity.maximum |> Maybe.withDefault maximumLength
-                        , minY = boxes |> List.map BoundingBox.minY |> Quantity.minimum |> Maybe.withDefault minimumLength
-                        , maxY = boxes |> List.map BoundingBox.maxY |> Quantity.maximum |> Maybe.withDefault maximumLength
+                        { minX = boxes |> List.map BoundingBox.minX |> Quantity.minimum |> Maybe.withDefault lengthLowerBound
+                        , maxX = boxes |> List.map BoundingBox.maxX |> Quantity.maximum |> Maybe.withDefault lengthUpperBound
+                        , minY = boxes |> List.map BoundingBox.minY |> Quantity.minimum |> Maybe.withDefault lengthLowerBound
+                        , maxY = boxes |> List.map BoundingBox.maxY |> Quantity.maximum |> Maybe.withDefault lengthUpperBound
                         }
 
                     maxSpan =
@@ -146,10 +177,10 @@ spanSuite =
                         SpatialIndex.boundingBoxes index
 
                     extrema =
-                        { minX = boxes |> List.map BoundingBox.minX |> Quantity.minimum |> Maybe.withDefault minimumLength
-                        , maxX = boxes |> List.map BoundingBox.maxX |> Quantity.maximum |> Maybe.withDefault maximumLength
-                        , minY = boxes |> List.map BoundingBox.minY |> Quantity.minimum |> Maybe.withDefault minimumLength
-                        , maxY = boxes |> List.map BoundingBox.maxY |> Quantity.maximum |> Maybe.withDefault maximumLength
+                        { minX = boxes |> List.map BoundingBox.minX |> Quantity.minimum |> Maybe.withDefault lengthLowerBound
+                        , maxX = boxes |> List.map BoundingBox.maxX |> Quantity.maximum |> Maybe.withDefault lengthUpperBound
+                        , minY = boxes |> List.map BoundingBox.minY |> Quantity.minimum |> Maybe.withDefault lengthLowerBound
+                        , maxY = boxes |> List.map BoundingBox.maxY |> Quantity.maximum |> Maybe.withDefault lengthUpperBound
                         }
 
                     maxSpan =
@@ -168,10 +199,10 @@ spanSuite =
                         SpatialIndex.boundingBoxes index
 
                     extrema =
-                        { minX = boxes |> List.map BoundingBox.minX |> Quantity.minimum |> Maybe.withDefault minimumLength
-                        , maxX = boxes |> List.map BoundingBox.maxX |> Quantity.maximum |> Maybe.withDefault maximumLength
-                        , minY = boxes |> List.map BoundingBox.minY |> Quantity.minimum |> Maybe.withDefault minimumLength
-                        , maxY = boxes |> List.map BoundingBox.maxY |> Quantity.maximum |> Maybe.withDefault maximumLength
+                        { minX = boxes |> List.map BoundingBox.minX |> Quantity.minimum |> Maybe.withDefault lengthLowerBound
+                        , maxX = boxes |> List.map BoundingBox.maxX |> Quantity.maximum |> Maybe.withDefault lengthUpperBound
+                        , minY = boxes |> List.map BoundingBox.minY |> Quantity.minimum |> Maybe.withDefault lengthLowerBound
+                        , maxY = boxes |> List.map BoundingBox.maxY |> Quantity.maximum |> Maybe.withDefault lengthUpperBound
                         }
 
                     maxSpan =
@@ -190,77 +221,113 @@ spanSuite =
                         SpatialIndex.boundingBoxes index
 
                     extrema =
-                        { minX = boxes |> List.map BoundingBox.maxX |> Quantity.minimum |> Maybe.withDefault minimumLength
-                        , maxX = boxes |> List.map BoundingBox.minX |> Quantity.maximum |> Maybe.withDefault maximumLength
-                        , minY = boxes |> List.map BoundingBox.maxY |> Quantity.minimum |> Maybe.withDefault minimumLength
-                        , maxY = boxes |> List.map BoundingBox.minY |> Quantity.maximum |> Maybe.withDefault maximumLength
+                        { minX = boxes |> List.map BoundingBox.maxX |> Quantity.minimum |> Maybe.withDefault lengthLowerBound
+                        , maxX = boxes |> List.map BoundingBox.minX |> Quantity.maximum |> Maybe.withDefault lengthUpperBound
+                        , minY = boxes |> List.map BoundingBox.maxY |> Quantity.minimum |> Maybe.withDefault lengthLowerBound
+                        , maxY = boxes |> List.map BoundingBox.minY |> Quantity.maximum |> Maybe.withDefault lengthUpperBound
                         }
 
                     maxSpan =
                         fromExtrema { minX = extrema.minX, maxX = extrema.maxX, minY = extrema.minY, maxY = extrema.maxY }
                 in
-                Expect.equalLists (SpatialIndex.span maxSpan index |> SpatialIndex.values) (SpatialIndex.values index)
+                (SpatialIndex.span maxSpan index |> SpatialIndex.values) |> equalAsSets (SpatialIndex.values index)
+        ]
+
+
+containedInSuite : Test
+containedInSuite =
+    describe "Retrieve all elements of an index weakly contained in a given range"
+        [ fuzz fuzzIndex "a range touching all elements is the maximal span" <|
+            \index ->
+                let
+                    boxes =
+                        SpatialIndex.boundingBoxes index
+
+                    innerSpan =
+                        fromExtrema
+                            { minX = minimumBy BoundingBox.maxX boxes |> Maybe.withDefault lengthLowerBound
+                            , maxX = maximumBy BoundingBox.minX boxes |> Maybe.withDefault lengthUpperBound
+                            , minY = minimumBy BoundingBox.maxY boxes |> Maybe.withDefault lengthLowerBound
+                            , maxY = maximumBy BoundingBox.minY boxes |> Maybe.withDefault lengthUpperBound
+                            }
+                in
+                SpatialIndex.containedIn innerSpan index |> equalIndexValues index
+        , fuzz fuzzBox "elements created to match query are separated correctly" <|
+            \range ->
+                let
+                    minX_ =
+                        BoundingBox.minX range
+
+                    maxX_ =
+                        BoundingBox.minX range
+
+                    minY_ =
+                        BoundingBox.minY range
+
+                    maxY_ =
+                        BoundingBox.maxY range
+
+                    contained =
+                        [ element (fromExtrema { minX = minX_, maxX = maxX_, minY = minY_, maxY = maxY_ }) "contained 1"
+                        , element
+                            (fromExtrema
+                                { minX = minX_ |> Quantity.plus lengthDelta
+                                , maxX = maxX_ |> Quantity.minus lengthDelta
+                                , minY = minY_ |> Quantity.plus lengthDelta
+                                , maxY = maxY_ |> Quantity.minus lengthDelta
+                                }
+                            )
+                            "contained 2"
+                        ]
+
+                    outside =
+                        [ element
+                            (fromExtrema
+                                { minX = minX_ |> Quantity.minus lengthDelta
+                                , maxX = maxX_
+                                , minY = minY_
+                                , maxY = maxY_
+                                }
+                            )
+                            "out 1"
+                        , element
+                            (fromExtrema
+                                { minX = minX_
+                                , maxX = maxX_ |> Quantity.plus lengthDelta
+                                , minY = minY_
+                                , maxY = maxY_
+                                }
+                            )
+                            "out 2"
+                        , element
+                            (fromExtrema
+                                { minX = minX_
+                                , maxX = maxX_
+                                , minY = minY_ |> Quantity.minus lengthDelta
+                                , maxY = maxY_
+                                }
+                            )
+                            "out 3"
+                        , element
+                            (fromExtrema
+                                { minX = minX_
+                                , maxX = maxX_
+                                , minY = minY_
+                                , maxY = maxY_ |> Quantity.plus lengthDelta
+                                }
+                            )
+                            "out 4"
+                        ]
+
+                    index =
+                        SpatialIndex.fromElements <| (contained |> List.append outside)
+                in
+                [ "contained 1", "contained 2" ]
+                    |> equalAsSets (containedIn range index |> SpatialIndex.values)
         ]
 
 
 
---containedInSuite : Test
---containedInSuite =
---    describe "Similar to span, but requires that all elements are strictly contained in the range"
---        [ fuzz fuzzIndex "a range touching all elements is the maximal span" <|
---            \index ->
---                let
---                    boxes =
---                        SI.boundingBoxes index
---
---                    ( minX, maxX, minY, maxY ) =
---                        ( minimumBy BB.maxX boxes |> Maybe.map BB.maxX |> Maybe.withDefault -10000
---                        , maximumBy BB.minX boxes |> Maybe.map BB.minX |> Maybe.withDefault 10000
---                        , minimumBy BB.maxY boxes |> Maybe.map BB.maxY |> Maybe.withDefault -10000
---                        , maximumBy BB.minY boxes |> Maybe.map BB.minY |> Maybe.withDefault 10000
---                        )
---
---                    innerSpan =
---                        fromExtrema { minX = minX, maxX = maxX, minY = minY, maxY = maxY }
---                in
---                Expect.equalLists (SI.containedIn innerSpan index |> SI.values) (SI.values index)
---        , fuzz4 float float float float "preset values are contained in an index" <|
---            \x1 x2 y1 y2 ->
---                let
---                    minX_ =
---                        min x1 x2
---
---                    maxX_ =
---                        max x1 x2
---
---                    minY_ =
---                        min y1 y2
---
---                    maxY_ =
---                        max y1 y2
---
---                    range =
---                        fromExtrema { minX = minX_, maxX = maxX_, minY = minY_, maxY = maxY_ }
---
---                    contained =
---                        [ element (fromExtrema { minX = minX_, maxX = maxX_, minY = minY_, maxY = maxY_ }) "contained 1"
---                        , element (fromExtrema { minX = minX_ + delta, maxX = maxX_ - delta, minY = minY_ + delta, maxY = maxY_ - delta }) "contained 2"
---                        ]
---
---                    outside =
---                        [ element (fromExtrema { minX = minX_ - delta, maxX = maxX_, minY = minY_, maxY = maxY_ }) "out 1"
---                        , element (fromExtrema { minX = minX_, maxX = maxX_ + delta, minY = minY_, maxY = maxY_ }) "out 2"
---                        , element (fromExtrema { minX = minX_, maxX = maxX_, minY = minY_ - delta, maxY = maxY_ }) "out 3"
---                        , element (fromExtrema { minX = minX_, maxX = maxX_, minY = minY_, maxY = maxY_ + delta }) "out 4"
---                        ]
---
---                    index =
---                        SI.fromElements <| (contained |> List.append outside)
---                in
---                Expect.equalLists [ "contained 1", "contained 2" ] (containedIn range index |> SI.values |> List.sort)
---        ]
---
---
 --partitionByLineSuite : Test
 --partitionByLineSuite =
 --    -- TODO: Need to check other directions and possibly not axis aligned directions, too
