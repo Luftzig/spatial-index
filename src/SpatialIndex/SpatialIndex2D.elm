@@ -10,6 +10,8 @@ module SpatialIndex.SpatialIndex2D exposing
     , empty
     , fromElements
     , insert
+    , intersectingWith
+    , isEmpty
     , map
     , mapValues
     , maxBoundingBox
@@ -18,7 +20,7 @@ module SpatialIndex.SpatialIndex2D exposing
     , partitionByBounds
     , partitionByLine
     , remove
-    , span
+    , size
     , value
     , values
     )
@@ -139,16 +141,30 @@ elements (SpatialIndex { xSorted }) =
     xSorted
 
 
+{-| Return True if and only if the index is empty.
+-}
+isEmpty : SpatialIndex q c a -> Bool
+isEmpty (SpatialIndex { xSorted }) =
+    List.isEmpty xSorted
+
+
+{-| Return the number of elements contained in the index. Result is non-negative.
+-}
+size : SpatialIndex q c a -> Int
+size (SpatialIndex { xSorted }) =
+    List.length xSorted
+
+
 {-| Return a new spatial index such that all elements in the new index intersect or contained with the argument `boundingBox`.
 -}
-span : BoundingBox2d q c -> SpatialIndex q c a -> SpatialIndex q c a
-span boundingBox (SpatialIndex { xSorted, ySorted }) =
+intersectingWith : BoundingBox2d q c -> SpatialIndex q c a -> SpatialIndex q c a
+intersectingWith boundingBox (SpatialIndex { xSorted, ySorted }) =
     let
         { minX, maxX, minY, maxY } =
             extrema boundingBox
 
         xs =
-            xSorted |> List.filter (bounds >> intersects boundingBox)
+            xSorted |> List.filter (bounds >> BoundingBox.intersects boundingBox)
     in
     SpatialIndex
         { xSorted = xs
@@ -156,11 +172,12 @@ span boundingBox (SpatialIndex { xSorted, ySorted }) =
         }
 
 
-{-| Return a new spatial index such that all elements in the new index are contained in the supplied `boundingBox`
+{-| Return a new spatial index such that all elements in the new index are strictly contained in the supplied `boundingBox`
 -}
 containedIn : BoundingBox2d q c -> SpatialIndex q c a -> SpatialIndex q c a
-containedIn boundingBox index =
-    Debug.todo "TBD"
+containedIn boundingBox (SpatialIndex { xSorted }) =
+    List.filter (\elem -> BoundingBox.isContainedIn boundingBox <| bounds elem) xSorted
+        |> List.foldr insert empty
 
 
 {-| Return a tuple of two indices which represent the partition of the input index around the supplied line.

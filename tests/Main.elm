@@ -1,9 +1,11 @@
-module Main exposing (delta, fuzzBox, fuzzBoxes, fuzzIndex, insertOperation)
+module Main exposing (containedInSuite, insertOperation, intersectsSuite, partitionByLineSuite)
 
 import BoundingBox2d as BoundingBox exposing (fromExtrema, maxX, maxY, minX, minY)
+import Direction2d exposing (positiveX)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Length exposing (Length, Meters)
+import Point2d
 import Quantity exposing (Quantity)
 import Set
 import SpatialIndex.SpatialIndex2D as SpatialIndex exposing (..)
@@ -128,10 +130,10 @@ equalIndexValues index1 index2 =
     SpatialIndex.values index1 |> equalAsSets (SpatialIndex.values index2)
 
 
-spanSuite : Test
-spanSuite =
-    describe "Span operation"
-        [ fuzz fuzzIndex "span of maximal range is everything" <|
+intersectsSuite : Test
+intersectsSuite =
+    describe "Intersect operation"
+        [ fuzz fuzzIndex "The maximal size of index intersects with all elements" <|
             \index ->
                 let
                     boxes =
@@ -147,8 +149,8 @@ spanSuite =
                     maxSpan =
                         fromExtrema extrema
                 in
-                SpatialIndex.span maxSpan index |> equalIndexValues index
-        , fuzz fuzzIndex "span out of range is empty" <|
+                SpatialIndex.intersectingWith maxSpan index |> equalIndexValues index
+        , fuzz fuzzIndex "intersect out of range is empty" <|
             \index ->
                 let
                     boxes =
@@ -169,8 +171,8 @@ spanSuite =
                             , maxY = extrema.minY |> Quantity.minus (Length.meters 1)
                             }
                 in
-                Expect.equal 0 (SpatialIndex.span maxSpan index |> SpatialIndex.values |> List.length)
-        , fuzz fuzzIndex "span X out of range is empty" <|
+                Expect.equal 0 (SpatialIndex.intersectingWith maxSpan index |> SpatialIndex.values |> List.length)
+        , fuzz fuzzIndex "intersect X out of range is empty" <|
             \index ->
                 let
                     boxes =
@@ -191,8 +193,8 @@ spanSuite =
                             , maxY = extrema.maxY
                             }
                 in
-                Expect.equal 0 (SpatialIndex.span maxSpan index |> SpatialIndex.values |> List.length)
-        , fuzz fuzzIndex "span Y out of range is empty" <|
+                Expect.equal 0 (SpatialIndex.intersectingWith maxSpan index |> SpatialIndex.values |> List.length)
+        , fuzz fuzzIndex "intersect Y out of range is empty" <|
             \index ->
                 let
                     boxes =
@@ -213,8 +215,8 @@ spanSuite =
                             , maxY = extrema.minY |> Quantity.minus (Length.meters 1)
                             }
                 in
-                Expect.equal 0 (SpatialIndex.span maxSpan index |> SpatialIndex.values |> List.length)
-        , fuzz fuzzIndex "inner span is also maximal" <|
+                Expect.equal 0 (SpatialIndex.intersectingWith maxSpan index |> SpatialIndex.values |> List.length)
+        , fuzz fuzzIndex "inner intersect is also maximal" <|
             \index ->
                 let
                     boxes =
@@ -230,13 +232,13 @@ spanSuite =
                     maxSpan =
                         fromExtrema { minX = extrema.minX, maxX = extrema.maxX, minY = extrema.minY, maxY = extrema.maxY }
                 in
-                (SpatialIndex.span maxSpan index |> SpatialIndex.values) |> equalAsSets (SpatialIndex.values index)
+                (SpatialIndex.intersectingWith maxSpan index |> SpatialIndex.values) |> equalAsSets (SpatialIndex.values index)
         ]
 
 
 containedInSuite : Test
 containedInSuite =
-    describe "Retrieve all elements of an index weakly contained in a given range"
+    describe "Retrieve all elements of an index strictly contained in a given range"
         [ fuzz fuzzIndex "a range touching all elements is the maximal span" <|
             \index ->
                 let
@@ -327,58 +329,23 @@ containedInSuite =
         ]
 
 
+partitionByLineSuite : Test
+partitionByLineSuite =
+    describe "Partition index by a line"
+        [ fuzz2 fuzzIndex Fuzz.float "The size of both results is the same as the input" <|
+            \index xCoordinate ->
+                let
+                    ( left, right ) =
+                        SpatialIndex.partitionByLine
+                            (Point2d.fromMeters { x = xCoordinate, y = 0 })
+                            Direction2d.positiveY
+                            index
+                in
+                SpatialIndex.size index |> Expect.equal (SpatialIndex.size left + SpatialIndex.size right)
+        ]
 
---partitionByLineSuite : Test
---partitionByLineSuite =
---    -- TODO: Need to check other directions and possibly not axis aligned directions, too
---    describe "Partition index by a line"
---        [ fuzz fuzzIndex "Elements space separated by medial X" <|
---            \index ->
---                let
---                    sorted =
---                        SI.elements index |> List.sortBy (bounds >> maxX)
---
---                    lower =
---                        List.take (List.length sorted // 2) sorted
---
---                    upper =
---                        List.drop (List.length sorted // 2) sorted
---
---                    medial =
---                        Maybe.map (bounds >> maxX) (List.head upper)
---
---                    point =
---                        Maybe.map (\x -> fromCoordinates ( x, 0 )) medial
---
---                    result =
---                        Maybe.map (\p -> partitionByLine p positiveX index) point
---
---                    lowerResult =
---                        Maybe.map Tuple.second
---
---                    upperResult =
---                        Maybe.map Tuple.first
---                in
---                Expect.all
---                    [ \res ->
---                        Expect.equalLists
---                            (List.map value lower |> List.sort)
---                            (lowerResult res
---                                |> Maybe.map values
---                                |> Maybe.withDefault []
---                            )
---                    , \res ->
---                        Expect.equalLists
---                            (List.map value upper |> List.sort)
---                            (upperResult res
---                                |> Maybe.map values
---                                |> Maybe.withDefault []
---                            )
---                    ]
---                    result
---        ]
---
---
+
+
 --partitionByBoundsSuite : Test
 --partitionByBoundsSuite =
 --    describe "Partition index by a bounding box"
