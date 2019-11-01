@@ -12,14 +12,24 @@ import SpatialIndex.SpatialIndex2D as SpatialIndex exposing (..)
 import Test exposing (..)
 
 
-delta : Float
-delta =
-    1.0e-6
+epsilon : Float
+epsilon =
+    2 ^ -52
 
 
-lengthDelta : Length
-lengthDelta =
-    Length.meters delta
+epsilonLength : Length
+epsilonLength =
+    Length.meters epsilon
+
+
+plusScaledEpsilon : Quantity Float Meters -> Quantity Float Meters
+plusScaledEpsilon v =
+    Quantity.max (v |> Quantity.plus epsilonLength) (v |> Quantity.multiplyBy (1 + epsilon))
+
+
+minusScaledEpsilon : Quantity Float Meters -> Quantity Float Meters
+minusScaledEpsilon v =
+    Quantity.max (v |> Quantity.minus epsilonLength) (v |> Quantity.multiplyBy (1 - epsilon))
 
 
 fuzzLength : Fuzzer Length
@@ -247,21 +257,21 @@ containedInSuite =
 
                     innerSpan =
                         fromExtrema
-                            { minX = minimumBy BoundingBox.maxX boxes |> Maybe.withDefault lengthLowerBound
-                            , maxX = maximumBy BoundingBox.minX boxes |> Maybe.withDefault lengthUpperBound
-                            , minY = minimumBy BoundingBox.maxY boxes |> Maybe.withDefault lengthLowerBound
-                            , maxY = maximumBy BoundingBox.minY boxes |> Maybe.withDefault lengthUpperBound
+                            { minX = minimumBy BoundingBox.minX boxes |> Maybe.withDefault lengthLowerBound
+                            , maxX = maximumBy BoundingBox.maxX boxes |> Maybe.withDefault lengthUpperBound
+                            , minY = minimumBy BoundingBox.minY boxes |> Maybe.withDefault lengthLowerBound
+                            , maxY = maximumBy BoundingBox.maxY boxes |> Maybe.withDefault lengthUpperBound
                             }
                 in
                 SpatialIndex.containedIn innerSpan index |> equalIndexValues index
-        , fuzz fuzzBox "elements created to match query are separated correctly" <|
+        , fuzz fuzzBox "elements created to exceed range are not returned" <|
             \range ->
                 let
                     minX_ =
                         BoundingBox.minX range
 
                     maxX_ =
-                        BoundingBox.minX range
+                        BoundingBox.maxX range
 
                     minY_ =
                         BoundingBox.minY range
@@ -270,22 +280,13 @@ containedInSuite =
                         BoundingBox.maxY range
 
                     contained =
-                        [ element (fromExtrema { minX = minX_, maxX = maxX_, minY = minY_, maxY = maxY_ }) "contained 1"
-                        , element
-                            (fromExtrema
-                                { minX = minX_ |> Quantity.plus lengthDelta
-                                , maxX = maxX_ |> Quantity.minus lengthDelta
-                                , minY = minY_ |> Quantity.plus lengthDelta
-                                , maxY = maxY_ |> Quantity.minus lengthDelta
-                                }
-                            )
-                            "contained 2"
+                        [ element range "contained 1"
                         ]
 
                     outside =
                         [ element
                             (fromExtrema
-                                { minX = minX_ |> Quantity.minus lengthDelta
+                                { minX = minX_ |> Quantity.minus (Length.meters 1)
                                 , maxX = maxX_
                                 , minY = minY_
                                 , maxY = maxY_
@@ -295,7 +296,7 @@ containedInSuite =
                         , element
                             (fromExtrema
                                 { minX = minX_
-                                , maxX = maxX_ |> Quantity.plus lengthDelta
+                                , maxX = maxX_ |> Quantity.plus (Length.meters 10)
                                 , minY = minY_
                                 , maxY = maxY_
                                 }
@@ -305,7 +306,7 @@ containedInSuite =
                             (fromExtrema
                                 { minX = minX_
                                 , maxX = maxX_
-                                , minY = minY_ |> Quantity.minus lengthDelta
+                                , minY = minY_ |> Quantity.minus (Length.meters 1)
                                 , maxY = maxY_
                                 }
                             )
@@ -315,7 +316,7 @@ containedInSuite =
                                 { minX = minX_
                                 , maxX = maxX_
                                 , minY = minY_
-                                , maxY = maxY_ |> Quantity.plus lengthDelta
+                                , maxY = maxY_ |> Quantity.plus (Length.meters 1)
                                 }
                             )
                             "out 4"
@@ -323,9 +324,12 @@ containedInSuite =
 
                     index =
                         SpatialIndex.fromElements <| (contained |> List.append outside)
+
+                    resultIndex =
+                        containedIn range index
                 in
-                [ "contained 1", "contained 2" ]
-                    |> equalAsSets (containedIn range index |> SpatialIndex.values)
+                [ "contained 1" ]
+                    |> equalAsSets (SpatialIndex.values resultIndex)
         ]
 
 
