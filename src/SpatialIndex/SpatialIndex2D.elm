@@ -17,9 +17,10 @@ module SpatialIndex.SpatialIndex2D exposing
     , maxBoundingBox
     , merge
     , nearest
-    , partitionByBounds
+    , partitionIntersecting
     , remove
     , size
+    , span
     , value
     , values
     )
@@ -154,21 +155,40 @@ size (SpatialIndex { xSorted }) =
     List.length xSorted
 
 
+span : SpatialIndex q c a -> Maybe (BoundingBox2d q c)
+span (SpatialIndex { xSorted, ySorted }) =
+    case ( xSorted, ySorted ) of
+        ( firstX :: restXs, firstY :: restYs ) ->
+            Just <|
+                BoundingBox.fromExtrema
+                    { minX = (bounds >> minX) firstX
+                    , minY = (bounds >> minY) firstY
+                    , maxX =
+                        case xSorted |> List.map (bounds >> BoundingBox.maxX) |> Quantity.maximum of
+                            Just x ->
+                                x
+
+                            Nothing ->
+                                Debug.todo "This code should be unreachable because xSorted is not empty"
+                    , maxY =
+                        case ySorted |> List.map (bounds >> BoundingBox.maxY) |> Quantity.maximum of
+                            Just y ->
+                                y
+
+                            Nothing ->
+                                Debug.todo "This code should be unreachable because xSorted is not empty"
+                    }
+
+        _ ->
+            Nothing
+
+
 {-| Return a new spatial index such that all elements in the new index intersect or contained with the argument `boundingBox`.
 -}
 intersectingWith : BoundingBox2d q c -> SpatialIndex q c a -> SpatialIndex q c a
-intersectingWith boundingBox (SpatialIndex { xSorted, ySorted }) =
-    let
-        { minX, maxX, minY, maxY } =
-            extrema boundingBox
-
-        xs =
-            xSorted |> List.filter (bounds >> BoundingBox.intersects boundingBox)
-    in
-    SpatialIndex
-        { xSorted = xs
-        , ySorted = xs |> List.sortBy (\b -> b |> bounds |> BoundingBox.minY |> getRawQuantity)
-        }
+intersectingWith boundingBox (SpatialIndex { xSorted }) =
+    List.filter (\elem -> BoundingBox.intersects boundingBox <| bounds elem) xSorted
+        |> fromElements
 
 
 {-| Return a new spatial index such that all elements in the new index are strictly contained in the supplied `boundingBox`
@@ -176,16 +196,20 @@ intersectingWith boundingBox (SpatialIndex { xSorted, ySorted }) =
 containedIn : BoundingBox2d q c -> SpatialIndex q c a -> SpatialIndex q c a
 containedIn boundingBox (SpatialIndex { xSorted }) =
     List.filter (\elem -> BoundingBox.isContainedIn boundingBox <| bounds elem) xSorted
-        |> List.foldr insert empty
+        |> fromElements
 
 
 {-| Return a tuple of two indices which represent a partition around a bounding box.
 The first index in the result contains all elements of the input index which are contained or intersect the `bounds`.
 The second index in the result contains the rest of the elements.
 -}
-partitionByBounds : BoundingBox2d q c -> SpatialIndex q c a -> ( SpatialIndex q c a, SpatialIndex q c a )
-partitionByBounds inBounds index =
-    Debug.todo "TBD"
+partitionIntersecting : BoundingBox2d q c -> SpatialIndex q c a -> ( SpatialIndex q c a, SpatialIndex q c a )
+partitionIntersecting boundingBox (SpatialIndex { xSorted }) =
+    let
+        ( inSet, outSet ) =
+            List.partition (\elem -> BoundingBox.intersects boundingBox <| bounds elem) xSorted
+    in
+    ( fromElements inSet, fromElements outSet )
 
 
 {-| Merge all elements from two indices into a new index. Does not preserve ordering.

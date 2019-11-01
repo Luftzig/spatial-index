@@ -1,7 +1,6 @@
-module Main exposing (containedInSuite, insertOperation, intersectsSuite)
+module Main exposing (containedInSuite, insertOperation, intersectsSuite, mergeSuite, partitionIntersectingSuit, spanSuite)
 
 import BoundingBox2d as BoundingBox exposing (fromExtrema, maxX, maxY, minX, minY)
-import Direction2d exposing (positiveX)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Length exposing (Length, Meters)
@@ -67,7 +66,7 @@ fuzzIndex =
 
 insertOperation : Test
 insertOperation =
-    describe "Insert operation"
+    describe "SpatialIndex.insert"
         [ fuzz fuzzBoxes "insertion preserves values" <|
             \boxes ->
                 let
@@ -125,24 +124,57 @@ maximumBy f xs =
     xs |> List.map f |> Quantity.maximum
 
 
-equalAsSets : List comparable -> List comparable -> Expectation
-equalAsSets xs ys =
+equalListsWithoutOrder : List comparable -> List comparable -> Expectation
+equalListsWithoutOrder xs ys =
     Set.fromList xs |> Expect.equalSets (Set.fromList ys)
 
 
 equalAsSetsBy : (a -> comparable) -> List a -> List a -> Expectation
 equalAsSetsBy f xs ys =
-    equalAsSets (List.map f xs) (List.map f ys)
+    equalListsWithoutOrder (List.map f xs) (List.map f ys)
 
 
 equalIndexValues : SpatialIndex q c comparable -> SpatialIndex q c comparable -> Expectation
 equalIndexValues index1 index2 =
-    SpatialIndex.values index1 |> equalAsSets (SpatialIndex.values index2)
+    SpatialIndex.values index1 |> equalListsWithoutOrder (SpatialIndex.values index2)
+
+
+spanSuite : Test
+spanSuite =
+    describe "SpatialIndex.span - the maximal bounding box of the index"
+        [ fuzz fuzzIndex "the span contains all elements" <|
+            \index ->
+                let
+                    boxes =
+                        SpatialIndex.boundingBoxes index
+
+                    { maybeMaxX, maybeMinX, maybeMaxY, maybeMinY } =
+                        { maybeMaxX = maximumBy maxX boxes
+                        , maybeMinX = minimumBy minX boxes
+                        , maybeMaxY = maximumBy maxY boxes
+                        , maybeMinY = minimumBy minY boxes
+                        }
+
+                    expected =
+                        case ( maybeMaxX, maybeMinX ) of
+                            ( Just maxX_, Just minX_ ) ->
+                                case ( maybeMaxY, maybeMinY ) of
+                                    ( Just maxY_, Just minY_ ) ->
+                                        Just <| fromExtrema { maxX = maxX_, minX = minX_, maxY = maxY_, minY = minY_ }
+
+                                    _ ->
+                                        Nothing
+
+                            _ ->
+                                Nothing
+                in
+                expected |> Expect.equal (SpatialIndex.span index)
+        ]
 
 
 intersectsSuite : Test
 intersectsSuite =
-    describe "Intersect operation"
+    describe "SpatialIndex.intersect"
         [ fuzz fuzzIndex "The maximal size of index intersects with all elements" <|
             \index ->
                 let
@@ -242,13 +274,13 @@ intersectsSuite =
                     maxSpan =
                         fromExtrema { minX = extrema.minX, maxX = extrema.maxX, minY = extrema.minY, maxY = extrema.maxY }
                 in
-                (SpatialIndex.intersectingWith maxSpan index |> SpatialIndex.values) |> equalAsSets (SpatialIndex.values index)
+                (SpatialIndex.intersectingWith maxSpan index |> SpatialIndex.values) |> equalListsWithoutOrder (SpatialIndex.values index)
         ]
 
 
 containedInSuite : Test
 containedInSuite =
-    describe "Retrieve all elements of an index strictly contained in a given range"
+    describe "SpatialIndex.containedIn"
         [ fuzz fuzzIndex "a range touching all elements is the maximal span" <|
             \index ->
                 let
@@ -329,53 +361,88 @@ containedInSuite =
                         containedIn range index
                 in
                 [ "contained 1" ]
-                    |> equalAsSets (SpatialIndex.values resultIndex)
+                    |> equalListsWithoutOrder (SpatialIndex.values resultIndex)
+        ]
+
+
+partitionIntersectingSuit : Test
+partitionIntersectingSuit =
+    describe "SpatialIndex.partitionIntersecting"
+        [ fuzz2 fuzzIndex fuzzBox "the sum of partitions is equal the whole" <|
+            \index range ->
+                let
+                    ( inSet, outSet ) =
+                        SpatialIndex.partitionIntersecting range index
+                in
+                Expect.equal (size index) (size inSet + size outSet)
+        , fuzz fuzzIndex "If bounding box does not intersect index then first set is empty" <|
+            \index ->
+                let
+                    minIndexX =
+                        SpatialIndex.elements index |> List.map (bounds >> minX) |> Quantity.minimum
+
+                    minIndexY =
+                        SpatialIndex.elements index |> List.map (bounds >> minY) |> Quantity.minimum
+
+                    range =
+                        case ( minIndexX, minIndexY ) of
+                            ( Just indexX, Just indexY ) ->
+                                BoundingBox.singleton <|
+                                    Point2d.xy (indexX |> Quantity.minus (Length.meters 1))
+                                        (indexY |> Quantity.minus (Length.meters 1))
+
+                            _ ->
+                                fromExtrema
+                                    { minX = Quantity.zero
+                                    , minY = Quantity.zero
+                                    , maxX = Quantity.zero
+                                    , maxY = Quantity.zero
+                                    }
+
+                    ( inGroup, outGroup ) =
+                        SpatialIndex.partitionIntersecting range index
+                in
+                Expect.all
+                    [ \_ -> Expect.equal (size inGroup) 0
+                    , \_ -> Expect.equal (size outGroup) (size index)
+                    ]
+                    ()
+        , fuzz fuzzIndex "If range is the span then the first set is equal index" <|
+            \index ->
+                let
+                    range =
+                        SpatialIndex.span index
+
+                    ( inGroup, outGroup ) =
+                        case range of
+                            Just range_ ->
+                                SpatialIndex.partitionIntersecting range_ index
+
+                            Nothing ->
+                                SpatialIndex.partitionIntersecting (BoundingBox.singleton Point2d.origin) index
+                in
+                Expect.all
+                    [ \_ -> Expect.equal (size inGroup) (size index)
+                    , \_ -> Expect.equal (size outGroup) 0
+                    ]
+                    ()
+        ]
+
+
+mergeSuite : Test
+mergeSuite =
+    describe "SpatialIndex.merge - create index with elements of both"
+        [ fuzz2 fuzzIndex fuzzIndex "Size of merged index should equal sum sources" <|
+            \index1 index2 ->
+                Expect.equal (size index1 + size index2) (size <| SpatialIndex.merge index1 index2)
+        , fuzz2 fuzzIndex fuzzIndex "Merged index should have values from both sources" <|
+            \index1 index2 ->
+                equalListsWithoutOrder (SpatialIndex.values index1 |> List.append (SpatialIndex.values index2))
+                    (SpatialIndex.values <| SpatialIndex.merge index1 index2)
         ]
 
 
 
---partitionByBoundsSuite : Test
---partitionByBoundsSuite =
---    describe "Partition index by a bounding box"
---        [ fuzz fuzzIndex "If bounding box does not intersect index then one set is empty" <|
---            \index ->
---                let
---                    minIndexX =
---                        SI.elements index |> List.map (bounds >> minX) |> List.minimum
---
---                    minIndexY =
---                        SI.elements index |> List.map (bounds >> minY) |> List.minimum
---
---                    externalBounds =
---                        case ( minIndexX, minIndexY ) of
---                            ( Just indexX, Just indexY ) ->
---                                fromExtrema
---                                    { minX = indexX - 1
---                                    , minY = indexY - 1
---                                    , maxX = indexX
---                                    , maxY = indexY
---                                    }
---
---                            _ ->
---                                fromExtrema { minX = 0, minY = 0, maxX = 0, maxY = 0 }
---
---                    ( inGroup, outGroup ) =
---                        SI.partitionByBounds externalBounds index
---                in
---                Expect.all
---                    [ \_ -> Expect.equal 0 (List.length <| SI.elements inGroup)
---                    , \_ -> Expect.equal (List.length <| SI.elements outGroup) (List.length <| SI.elements index)
---                    ]
---                    ()
---        ]
---
---
---mergeSuite : Test
---mergeSuite =
---    describe "Merge two indices togather"
---        []
---
---
 --collisionsSuite : Test
 --collisionsSuite =
 --    describe "Find all colliding pairs in the index"
