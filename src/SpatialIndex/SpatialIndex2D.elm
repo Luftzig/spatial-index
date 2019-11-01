@@ -18,7 +18,6 @@ module SpatialIndex.SpatialIndex2D exposing
     , merge
     , nearest
     , partitionByBounds
-    , partitionByLine
     , remove
     , size
     , value
@@ -178,16 +177,6 @@ containedIn : BoundingBox2d q c -> SpatialIndex q c a -> SpatialIndex q c a
 containedIn boundingBox (SpatialIndex { xSorted }) =
     List.filter (\elem -> BoundingBox.isContainedIn boundingBox <| bounds elem) xSorted
         |> List.foldr insert empty
-
-
-{-| Return a tuple of two indices which represent the partition of the input index around the supplied line.
-The line is represented by a point and the direction of it's normal.
-The first result index contains all elements which intersect the line, or contained in the direction of it's normal.
-The second result index contains all other elements
--}
-partitionByLine : Point2d q c -> Direction2d c -> SpatialIndex q c a -> ( SpatialIndex q c a, SpatialIndex q c a )
-partitionByLine point normal index =
-    Debug.todo "TBD"
 
 
 {-| Return a tuple of two indices which represent a partition around a bounding box.

@@ -1,4 +1,4 @@
-module Main exposing (containedInSuite, insertOperation, intersectsSuite, partitionByLineSuite)
+module Main exposing (containedInSuite, insertOperation, intersectsSuite)
 
 import BoundingBox2d as BoundingBox exposing (fromExtrema, maxX, maxY, minX, minY)
 import Direction2d exposing (positiveX)
@@ -330,22 +330,6 @@ containedInSuite =
                 in
                 [ "contained 1" ]
                     |> equalAsSets (SpatialIndex.values resultIndex)
-        ]
-
-
-partitionByLineSuite : Test
-partitionByLineSuite =
-    describe "Partition index by a line"
-        [ fuzz2 fuzzIndex Fuzz.float "The size of both results is the same as the input" <|
-            \index xCoordinate ->
-                let
-                    ( left, right ) =
-                        SpatialIndex.partitionByLine
-                            (Point2d.fromMeters { x = xCoordinate, y = 0 })
-                            Direction2d.positiveY
-                            index
-                in
-                SpatialIndex.size index |> Expect.equal (SpatialIndex.size left + SpatialIndex.size right)
         ]
 
 
