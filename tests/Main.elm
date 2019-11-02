@@ -1,4 +1,4 @@
-module Main exposing (containedInSuite, insertOperation, intersectsSuite, mergeSuite, partitionIntersectingSuit, spanSuite)
+module Main exposing (collisionsSuite, containedInSuite, insertOperation, intersectsSuite, mergeSuite, partitionIntersectingSuit, spanSuite)
 
 import BoundingBox2d as BoundingBox exposing (fromExtrema, maxX, maxY, minX, minY)
 import Expect exposing (Expectation)
@@ -442,13 +442,69 @@ mergeSuite =
         ]
 
 
+collisionsSuite : Test
+collisionsSuite =
+    describe "SpatialIndex.collisons"
+        [ fuzz fuzzIndex "The number of collisions is ≤ N^2" <|
+            \index ->
+                (SpatialIndex.collisions index |> List.length) |> Expect.atMost (size index ^ 2)
+        , fuzz fuzzIndex "An element the size of the whole index collides with all other elements" <|
+            \index ->
+                let
+                    maxValue =
+                        List.maximum <| SpatialIndex.values index
 
---collisionsSuite : Test
---collisionsSuite =
---    describe "Find all colliding pairs in the index"
---        []
---
---
+                    span =
+                        SpatialIndex.span index
+
+                    originalValues =
+                        SpatialIndex.values index
+
+                    maximalElement =
+                        case ( maxValue, span ) of
+                            ( Just maxVal, Just span_ ) ->
+                                element span_ (maxVal + 1)
+
+                            _ ->
+                                element (BoundingBox.singleton Point2d.origin) 0
+
+                    getNoneMaximal ( e1, e2 ) =
+                        if e1 == maximalElement then
+                            Just (value e2)
+
+                        else if e2 == maximalElement then
+                            Just (value e1)
+
+                        else
+                            Nothing
+
+                    indexWithMaximal =
+                        SpatialIndex.insert maximalElement index
+
+                    collisionsList =
+                        SpatialIndex.collisions indexWithMaximal
+                in
+                List.filterMap getNoneMaximal collisionsList |> equalListsWithoutOrder originalValues
+        , fuzz fuzzIndex "A collision only appears once" <|
+            \index ->
+                let
+                    collisionsList =
+                        SpatialIndex.collisions index
+
+                    collidedValues =
+                        Set.fromList <| List.map (\( e1, e2 ) -> ( value e1, value e2 )) collisionsList
+
+                    reversed =
+                        Set.map (\( v1, v2 ) -> ( v2, v1 )) collidedValues
+
+                    duplicatedValues =
+                        Set.intersect collidedValues reversed
+                in
+                Set.size duplicatedValues |> Expect.equal 0
+        ]
+
+
+
 --mapSuite : Test
 --mapSuite =
 --    describe "Map all elements and restructure the index if required"

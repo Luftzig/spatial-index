@@ -16,7 +16,6 @@ module SpatialIndex.SpatialIndex2D exposing
     , mapValues
     , maxBoundingBox
     , merge
-    , nearest
     , partitionIntersecting
     , remove
     , size
@@ -223,35 +222,50 @@ merge (SpatialIndex xs1) (SpatialIndex xs2) =
 Returns all intersecting elements, without duplications and without any guarantee on ordering
 -}
 collisions : SpatialIndex q c a -> List ( BoxBoundedValue q c a, BoxBoundedValue q c a )
-collisions index =
-    Debug.todo "TBD"
+collisions (SpatialIndex { xSorted }) =
+    let
+        allIntersections :
+            BoxBoundedValue q c a
+            -> List (BoxBoundedValue q c a)
+            -> List ( BoxBoundedValue q c a, BoxBoundedValue q c a )
+        allIntersections el rest =
+            List.filterMap
+                (\other ->
+                    if BoundingBox.intersects (bounds el) (bounds other) then
+                        Just ( el, other )
+
+                    else
+                        Nothing
+                )
+                rest
+    in
+    List.Extra.selectSplit xSorted |> List.concatMap (\( _, current, tail ) -> allIntersections current tail)
 
 
 {-| Apply function `f` on all elements of an index, returning a new index which will be reordered.
 -}
 map : (BoxBoundedValue q c a -> BoxBoundedValue q c b) -> SpatialIndex q c a -> SpatialIndex q c b
-map f index =
-    Debug.todo "TBD"
+map f (SpatialIndex { xSorted }) =
+    List.map f xSorted |> fromElements
 
 
 {-| Apply function `f` on all values of an index, returning a new index with the same structure as the original one
 (no change in bounding boxes).
 -}
 mapValues : (a -> b) -> SpatialIndex q c a -> SpatialIndex q c b
-mapValues f index =
-    Debug.todo "TBD"
-
-
-{-| Given a `point` return an index with the nearest `k` elements in the input index, or less, if there are less than
-`k` elements in the index.
--}
-nearest : Int -> Point2d q c -> SpatialIndex q c a -> SpatialIndex q c a
-nearest k point index =
-    Debug.todo "TBD"
+mapValues f (SpatialIndex { xSorted, ySorted }) =
+    SpatialIndex
+        { xSorted = List.map (\el -> element (bounds el) (f <| value el)) xSorted
+        , ySorted = List.map (\el -> element (bounds el) (f <| value el)) ySorted
+        }
 
 
 {-| Return a new index containing all elements in the input index not contained or intersecting the bounding box.
 -}
 remove : BoundingBox2d q c -> SpatialIndex q c a -> SpatialIndex q c a
 remove excludeBounds index =
-    Debug.todo "TBD"
+    let
+        ( _, outSet ) =
+            partitionIntersecting excludeBounds index
+    in
+    outSet
